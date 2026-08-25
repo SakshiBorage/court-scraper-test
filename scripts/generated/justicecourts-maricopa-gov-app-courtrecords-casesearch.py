@@ -10,21 +10,7 @@ from playwright.sync_api import Page
 
 CONTRACT_VERSION = '2'
 _DEFAULT_URL = 'https://justicecourts.maricopa.gov/app/courtrecords/CaseSearch'
-RESULT_FIELDS = [
-    'caseNumber',
-    'defendantFullName',
-    'defendantAddress',
-    'defendantCityState',
-    'defendantZip',
-    'courtName',
-    'courtState',
-    'filingDate',
-    'plaintiffName',
-    'judgement',
-    'judgementAmount',
-    'judgementDate',
-    'judgementRelDate',
-]
+RESULT_FIELDS = []
 def _canon(s):
     """Alphanumerics only, uppercased. 'gv24-001234' -> 'GV24001234'."""
     return re.sub(r"[^A-Za-z0-9]", "", s or "").upper()
@@ -397,15 +383,7 @@ def scrape(page: Page, params: dict) -> dict:
         parts.append(page.locator('main, body').first.inner_text())
     except Exception:
         pass
-    result['judgementAmount'] = _read(page, ['#MainContent_JudgmentsRepeater_DivAmountLiteral_0'], 'text', '', '')
-    result['judgementDate'] = _read(page, ['#MainContent_JudgmentsRepeater_DivDateLiteral_0'], 'text', '', '')
     raw = "\n\n".join(p for p in parts if p)
-    result['caseNumber'] = result['caseNumber'] or _rx(raw, 'Case Number:\\s*(CC[0-9]+)')
-    result['defendantFullName'] = result['defendantFullName'] or _rx(raw, 'Defendant\\s*Party Name\\s*([A-Z ]+)')
-    result['courtName'] = result['courtName'] or _rx(raw, 'Location:\\s*([A-Za-z ]+)')
-    result['filingDate'] = result['filingDate'] or _rx(raw, 'File Date:\\s*([0-9]{1,2}/[0-9]{1,2}/[0-9]{4})')
-    result['plaintiffName'] = result['plaintiffName'] or _rx(raw, 'Plaintiff\\s*Party Name\\s*([A-Z ]+)')
-    result['judgement'] = result['judgement'] or _rx(raw, 'Judgment\\s*For Plaintiff\\s*([A-Za-z ]+)')
     if "caseNumber" in RESULT_FIELDS and params.get("case"):
         result["caseNumber"] = params["case"]
     result["_raw_text"] = raw
