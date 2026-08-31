@@ -386,7 +386,6 @@ def scrape(page: Page, params: dict) -> dict:
     _goto(page, params['url'])
     _solve_captcha(page, params['url'], params.get('captcha_key') or '')
     page = _click(page, _loc(page, page.locator('[id="nav-case-tab"]'), page.get_by_role('link', name='Case Number'), page.get_by_text('Case Number', exact=False)))
-    page = _click(page, _loc(page, page.get_by_role('link', name='Case Number'), page.get_by_text('Case Number', exact=False)))
     _last_filled = _loc(page, page.locator('[id="MainContent_caseNumber"]'), page.locator('[name="ctl00$MainContent$caseNumber"]'), page.get_by_label('Case Number:', exact=False), page.get_by_role('textbox', name='ctl00$MainContent$caseNumber'), page.get_by_placeholder('Format Ex. CC2017123456', exact=False))
     _fill(page, _last_filled, params["case"])
     _press(page, _last_filled, 'Enter')
@@ -397,13 +396,15 @@ def scrape(page: Page, params: dict) -> dict:
         parts.append(page.locator('main, body').first.inner_text())
     except Exception:
         pass
+    result['judgementAmount'] = _read(page, ['#MainContent_JudgmentsRepeater_DivAmountLiteral_0'], 'text', '', '')
+    result['judgementDate'] = _read(page, ['#MainContent_JudgmentsRepeater_DivDateLiteral_0'], 'text', '', '')
     raw = "\n\n".join(p for p in parts if p)
-    result['caseNumber'] = result['caseNumber'] or _rx(raw, 'Case Number:\\s*(0701TR0303695)')
-    result['defendantFullName'] = result['defendantFullName'] or _rx(raw, 'Defendant\\s*Party Name\\s*John William Smith')
-    result['courtName'] = result['courtName'] or _rx(raw, 'Location:\\s*(El Centro Justice Court)')
-    result['courtState'] = result['courtState'] or _rx(raw, 'Maricopa County Justice Courts')
-    result['filingDate'] = result['filingDate'] or _rx(raw, 'File Date:\\s*(3/4/2003)')
-    result['plaintiffName'] = result['plaintiffName'] or _rx(raw, 'Plaintiff\\s*Party Name\\s*\\(2\\) State Of Arizona')
+    result['caseNumber'] = result['caseNumber'] or _rx(raw, 'Case Number:\\s*(CC[0-9]+)')
+    result['defendantFullName'] = result['defendantFullName'] or _rx(raw, "Defendant\\s*Party Name\\s*([A-Z][A-Za-z .,'-]+)")
+    result['courtName'] = result['courtName'] or _rx(raw, 'Location:\\s*([A-Za-z ]+ Justice Court)')
+    result['filingDate'] = result['filingDate'] or _rx(raw, 'File Date:\\s*([0-9]{1,2}/[0-9]{1,2}/[0-9]{4})')
+    result['plaintiffName'] = result['plaintiffName'] or _rx(raw, "Plaintiff\\s*Party Name\\s*([A-Z][A-Za-z .,'-]+)")
+    result['judgement'] = result['judgement'] or _rx(raw, 'Judgment\\s*For Plaintiff\\s*([A-Za-z ]+)')
     if "caseNumber" in RESULT_FIELDS and params.get("case"):
         result["caseNumber"] = params["case"]
     result["_raw_text"] = raw
