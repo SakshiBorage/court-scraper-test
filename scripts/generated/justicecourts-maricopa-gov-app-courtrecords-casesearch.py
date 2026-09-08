@@ -440,14 +440,14 @@ def scrape(page: Page, params: dict) -> dict:
     page = _click(page, _loc(page, page.get_by_role('link', name='Name'), page.get_by_text('Name', exact=False)))
     _collect_cases(page, _seen_cases)
     _last_filled = _loc(page, page.locator('[id="MainContent_LastName"]'), page.locator('[name="ctl00$MainContent$LastName"]'), page.get_by_label('Last Name:', exact=False), page.get_by_role('textbox', name='ctl00$MainContent$LastName'))
-    _fill(page, _last_filled, 'Smith')
+    _fill(page, _last_filled, _inp(params, 'lastName'))
     _collect_cases(page, _seen_cases)
     _last_filled = _loc(page, page.locator('[id="MainContent_FirstName"]'), page.locator('[name="ctl00$MainContent$FirstName"]'), page.get_by_label('First Name:', exact=False), page.get_by_role('textbox', name='ctl00$MainContent$FirstName'))
-    _fill(page, _last_filled, 'John')
+    _fill(page, _last_filled, _inp(params, 'firstName'))
     _collect_cases(page, _seen_cases)
     page = _click(page, _loc(page, page.locator('[id="NameSearchlink"]'), page.get_by_role('link', name='Search'), page.get_by_text('Search', exact=False)))
     _collect_cases(page, _seen_cases)
-    page = _click(page, _loc(page, page.locator('[id="MainContent_CaseSearchResultsGridView_CaseHyperLink_0"]'), page.get_by_role('link', name='CC2021015002'), page.get_by_text('CC2021015002', exact=False)))
+    page = _click(page, _loc(page, page.locator('[id="MainContent_CaseSearchResultsGridView_CaseHyperLink_0"]'), page.get_by_role('link', name='0701TR0303695'), page.get_by_text('0701TR0303695', exact=False)))
     _collect_cases(page, _seen_cases)
     _settle(page)
     page.wait_for_timeout(1500)  # let SPA detail content render before reading
@@ -456,16 +456,14 @@ def scrape(page: Page, params: dict) -> dict:
         parts.append(page.locator('main, body').first.inner_text())
     except Exception:
         pass
-    result['judgementAmount'] = _read(page, ['#MainContent_JudgmentsRepeater_DivAmountLiteral_0'], 'text', '', '')
-    result['judgementDate'] = _read(page, ['#MainContent_JudgmentsRepeater_DivDateLiteral_0'], 'text', '', '')
     raw = "\n\n".join(p for p in parts if p)
-    result['caseNumber'] = result['caseNumber'] or _rx(raw, 'Case Number:\\s*(CC[0-9]+)')
-    result['defendantFullName'] = result['defendantFullName'] or _rx(raw, "Defendant\\s*Party Name\\s*([A-Z][A-Za-z .,'-]+)")
-    result['courtName'] = result['courtName'] or _rx(raw, 'Location:\\s*([A-Za-z ]+ Justice Court)')
+    result['caseNumber'] = result['caseNumber'] or _rx(raw, 'Case Number:\\s*(\\w+)')
+    result['defendantFullName'] = result['defendantFullName'] or _rx(raw, 'Defendant\\s*Party Name\\s*([A-Za-z ]+)')
+    result['courtName'] = result['courtName'] or _rx(raw, 'Location:\\s*([A-Za-z ]+)')
     result['courtState'] = result['courtState'] or _rx(raw, 'Maricopa County Justice Courts')
     result['filingDate'] = result['filingDate'] or _rx(raw, 'File Date:\\s*([0-9]{1,2}/[0-9]{1,2}/[0-9]{4})')
-    result['plaintiffName'] = result['plaintiffName'] or _rx(raw, "Plaintiff\\s*Party Name\\s*([A-Z][A-Za-z .,'-]+)")
-    result['judgement'] = result['judgement'] or _rx(raw, 'Judgment\\s*For\\s*Plaintiff')
+    result['plaintiffName'] = result['plaintiffName'] or _rx(raw, 'Plaintiff\\s*Party Name\\s*\\(2\\)\\s*([A-Za-z ]+)')
+    result['judgement'] = result['judgement'] or _rx(raw, 'Disposition\\s*Plea of guilty or responsible; sentence imposed.')
     if "caseNumber" in RESULT_FIELDS and params.get("case"):
         result["caseNumber"] = params["case"]
     if "relatedCaseNumbers" in RESULT_FIELDS:
