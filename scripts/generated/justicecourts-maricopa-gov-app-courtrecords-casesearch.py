@@ -24,6 +24,7 @@ RESULT_FIELDS = [
     'judgementAmount',
     'judgementDate',
     'judgementRelDate',
+    'relatedCaseNumbers',
 ]
 def _canon(s):
     """Alphanumerics only, uppercased. 'gv24-001234' -> 'GV24001234'."""
@@ -365,6 +366,57 @@ def _rx(text, pattern):
         return ""
 
 
+def _inp(params, key):
+    """Read a run input by key, CASE-INSENSITIVELY.
+
+    The key spelling is baked in at authoring time — whatever the discovery run happened to call it
+    ('DOB') — but a later caller may send 'dob' or 'Dob'. An exact-match dict lookup would return ""
+    and the script would search without that identifier, silently, and open the wrong record.
+    """
+    d = (params or {}).get("inputs") or {}
+    if key in d:
+        return str(d[key] or "").strip()
+    lk = str(key).lower()
+    for k, v in d.items():
+        if str(k).lower() == lk:
+            return str(v or "").strip()
+    return ""
+
+
+def _case_like(v):
+    """Does this string look like a case/docket number? 6-30 chars of alnum/dash with >=4 digits."""
+    v = (v or "").strip()
+    if not (6 <= len(v) <= 30) or not re.fullmatch(r"[A-Za-z0-9-]+", v):
+        return False
+    return sum(c.isdigit() for c in v) >= 4
+
+
+def _collect_cases(page, acc):
+    """Accumulate case numbers linked from the CURRENT page, in page order, de-duped.
+
+    Called after every navigation step: a party-name search lands on a results list holding EVERY
+    case for that person, and the script then opens only one of them. Without this the siblings are
+    lost the moment we click through. Prefers the link's visible text (the case number as the court
+    prints it) and falls back to a case/docket query parameter in its href.
+    """
+    try:
+        vals = page.evaluate(
+            "() => Array.from(document.querySelectorAll('a')).map(a => {"
+            "  const t = (a.textContent || '').trim();"
+            "  if (t) return t;"
+            "  const m = (a.getAttribute('href') || '')"
+            "    .match(/[?&][^=]*(?:case|docket)[^=]*=([^&#]+)/i);"
+            "  return m ? decodeURIComponent(m[1]) : '';"
+            "})"
+        ) or []
+    except Exception:
+        return
+    for v in vals:
+        v = (v or "").strip()
+        if _case_like(v) and v not in acc:
+            acc.append(v)
+
+
 def preprocess(inputs: dict) -> dict:
     """Pure input transforms — no browser."""
     raw = str(inputs.get("case_number", "")).strip()
@@ -375,7 +427,7 @@ def preprocess(inputs: dict) -> dict:
         "court": (inputs.get("court_name") or ""),
         "first_name": (inputs.get("first_name") or ""),
         "last_name": (inputs.get("last_name") or ""),
-        "captcha_key": (inputs.get("captcha_key") or ""),
+        "inputs": dict(inputs or {}),
     }
 
 
@@ -383,12 +435,20 @@ def scrape(page: Page, params: dict) -> dict:
     """Navigate from the case number to the case-detail page, then extract the fields."""
     result = {k: "" for k in RESULT_FIELDS}
     _last_filled = None
+    _seen_cases = []
     _goto(page, params['url'])
-    _solve_captcha(page, params['url'], params.get('captcha_key') or '')
-    page = _click(page, _loc(page, page.locator('[id="nav-case-tab"]'), page.get_by_role('link', name='Case Number'), page.get_by_text('Case Number', exact=False)))
-    _last_filled = _loc(page, page.locator('[id="MainContent_caseNumber"]'), page.locator('[name="ctl00$MainContent$caseNumber"]'), page.get_by_label('Case Number:', exact=False), page.get_by_role('textbox', name='ctl00$MainContent$caseNumber'), page.get_by_placeholder('Format Ex. CC2017123456', exact=False))
-    _fill(page, _last_filled, params["case"])
-    _press(page, _last_filled, 'Enter')
+    page = _click(page, _loc(page, page.get_by_role('link', name='Name'), page.get_by_text('Name', exact=False)))
+    _collect_cases(page, _seen_cases)
+    _last_filled = _loc(page, page.locator('[id="MainContent_LastName"]'), page.locator('[name="ctl00$MainContent$LastName"]'), page.get_by_label('Last Name:', exact=False), page.get_by_role('textbox', name='ctl00$MainContent$LastName'))
+    _fill(page, _last_filled, 'Smith')
+    _collect_cases(page, _seen_cases)
+    _last_filled = _loc(page, page.locator('[id="MainContent_FirstName"]'), page.locator('[name="ctl00$MainContent$FirstName"]'), page.get_by_label('First Name:', exact=False), page.get_by_role('textbox', name='ctl00$MainContent$FirstName'))
+    _fill(page, _last_filled, 'John')
+    _collect_cases(page, _seen_cases)
+    page = _click(page, _loc(page, page.locator('[id="NameSearchlink"]'), page.get_by_role('link', name='Search'), page.get_by_text('Search', exact=False)))
+    _collect_cases(page, _seen_cases)
+    page = _click(page, _loc(page, page.locator('[id="MainContent_CaseSearchResultsGridView_CaseHyperLink_0"]'), page.get_by_role('link', name='CC2021015002'), page.get_by_text('CC2021015002', exact=False)))
+    _collect_cases(page, _seen_cases)
     _settle(page)
     page.wait_for_timeout(1500)  # let SPA detail content render before reading
     parts = []
@@ -402,10 +462,14 @@ def scrape(page: Page, params: dict) -> dict:
     result['caseNumber'] = result['caseNumber'] or _rx(raw, 'Case Number:\\s*(CC[0-9]+)')
     result['defendantFullName'] = result['defendantFullName'] or _rx(raw, "Defendant\\s*Party Name\\s*([A-Z][A-Za-z .,'-]+)")
     result['courtName'] = result['courtName'] or _rx(raw, 'Location:\\s*([A-Za-z ]+ Justice Court)')
+    result['courtState'] = result['courtState'] or _rx(raw, 'Maricopa County Justice Courts')
     result['filingDate'] = result['filingDate'] or _rx(raw, 'File Date:\\s*([0-9]{1,2}/[0-9]{1,2}/[0-9]{4})')
     result['plaintiffName'] = result['plaintiffName'] or _rx(raw, "Plaintiff\\s*Party Name\\s*([A-Z][A-Za-z .,'-]+)")
-    result['judgement'] = result['judgement'] or _rx(raw, 'Judgment\\s*For Plaintiff\\s*([A-Za-z ]+)')
+    result['judgement'] = result['judgement'] or _rx(raw, 'Judgment\\s*For\\s*Plaintiff')
     if "caseNumber" in RESULT_FIELDS and params.get("case"):
         result["caseNumber"] = params["case"]
+    if "relatedCaseNumbers" in RESULT_FIELDS:
+        _this = {_canon(params.get("case") or ""), _canon(result.get("caseNumber") or "")}
+        result["relatedCaseNumbers"] = ", ".join(c for c in _seen_cases if _canon(c) not in _this)
     result["_raw_text"] = raw
     return result
