@@ -478,7 +478,7 @@ def scrape(page: Page, params: dict) -> dict:
     result['filingDate'] = result['filingDate'] or _rx(raw, 'File Date:\\s*([0-9]{1,2}/[0-9]{1,2}/[0-9]{4})')
     result['plaintiffName'] = result['plaintiffName'] or _rx(raw, 'Plaintiff\\s*Party Name\\s*\\(1\\)\\s*([A-Za-z ]+)')
     result['judgement'] = result['judgement'] or _rx(raw, 'Disposition\\s*Failure to appear on civil traffic offense; default judgement entered; suspension of operating privilege ordered.')
-    result['judgementDate'] = result['judgementDate'] or _rx(raw, 'Disposition\\s*Date\\s*([0-9]{1,2}/[0-9]{1,2}/[0-9]{4})')
+    result['judgementDate'] = result['judgementDate'] or _rx(raw, 'Disposition Information\\s*Party Name\\s*Eric Francis Smith\\s*ARSCode\\s*28-737A \\(T1\\)\\s*Description\\s*HOV LANE W/O TWO IN VEHICLE\\s*Crime Date\\s*[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}\\s*[0-9]{1,2}:[0-9]{2} [APM]{2}\\s*Disposition Code\\s*[0-9]+\\s*Date\\s*([0-9]{1,2}/[0-9]{1,2}/[0-9]{4})')
     if "caseNumber" in RESULT_FIELDS and params.get("case"):
         result["caseNumber"] = params["case"]
     if "relatedCaseNumbers" in RESULT_FIELDS:
