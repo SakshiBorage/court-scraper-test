@@ -888,7 +888,7 @@ def scrape(page: Page, params: dict) -> dict:
         pass
     raw = "\n\n".join(p for p in parts if p)
     result['caseNumber'] = result['caseNumber'] or _rx(raw, 'Case Number:\\s*(CT[0-9]+)')
-    result['defendantFullName'] = result['defendantFullName'] or _rx(raw, 'Defendant\\s*Party Name\\s*([A-Za-z ]+)')
+    result['defendantFullName'] = result['defendantFullName'] or _rx(raw, 'Defendant\\s*Party Name\\s*\\(1\\)\\s*([A-Za-z ]+)')
     result['courtName'] = result['courtName'] or _rx(raw, 'Location:\\s*([A-Za-z ]+ Justice Court)')
     result['courtState'] = result['courtState'] or _rx(raw, 'Maricopa County Justice Courts')
     result['filingDate'] = result['filingDate'] or _rx(raw, 'File Date:\\s*([0-9]{1,2}/[0-9]{1,2}/[0-9]{4})')
